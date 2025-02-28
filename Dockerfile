@@ -1,52 +1,20 @@
-########################################################
-#        Renku install section - do not edit           #
+FROM ghcr.io/rocker-org/tidyverse:4.4.2
 
-FROM renku/renkulab-py:3.10-0.24.0 as builder
+ENV NB_UID=1000
+ENV NB_GID=1000
+COPY fix-permissions.sh /usr/local/bin
+RUN fix-permissions.sh /usr/local/lib/R
+RUN fix-permissions.sh /etc/rstudio/
+RUN fix-permissions.sh /etc/services.d/rstudio/
 
-# RENKU_VERSION determines the version of the renku CLI
-# that will be used in this image. To find the latest version,
-# visit https://pypi.org/project/renku/#history.
-ARG RENKU_VERSION=2.9.4
+# The container will be run as a regular user, so certain changes need to be done at image build time
+ENV DISABLE_AUTH=true
+ENV PASSWORD=renkulab
+ENV USER=rstudio
+RUN cp /etc/rstudio/disable_auth_rserver.conf /etc/rstudio/rserver.conf \
+    && echo "USER=$USER" >>/etc/environment
 
-# Install renku from pypi or from github if a dev version
-RUN if [ -n "$RENKU_VERSION" ] ; then \
-        source .renku/venv/bin/activate ; \
-        currentversion=$(renku --version) ; \
-        if [ "$RENKU_VERSION" != "$currentversion" ] ; then \
-            pip uninstall renku -y ; \
-            gitversion=$(echo "$RENKU_VERSION" | sed -n "s/^[[:digit:]]\+\.[[:digit:]]\+\.[[:digit:]]\+\(rc[[:digit:]]\+\)*\(\.dev[[:digit:]]\+\)*\(+g\([a-f0-9]\+\)\)*\(+dirty\)*$/\4/p") ; \
-            if [ -n "$gitversion" ] ; then \
-                pip install --no-cache-dir --force "git+https://github.com/SwissDataScienceCenter/renku-python.git@$gitversion" ;\
-            else \
-                pip install --no-cache-dir --force renku==${RENKU_VERSION} ;\
-            fi \
-        fi \
-    fi
-#             End Renku install section                #
-########################################################
+# Use our alternative init_userconf.sh script, which is renkulab compatible
+COPY scripts/init_userconf.sh /rocker_scripts/init_userconf.sh
 
-FROM renku/renkulab-py:3.10-0.24.0
-
-# Uncomment and adapt if code is to be included in the image
-# COPY src /code/src
-
-# Uncomment and adapt if your R or python packages require extra linux (ubuntu) software
-# e.g. the following installs apt-utils and vim; each pkg on its own line, all lines
-# except for the last end with backslash '\' to continue the RUN line
-#
-# USER root
-# RUN apt-get update && \
-#    apt-get install -y --no-install-recommends \
-#    apt-utils \
-#    vim
-# USER ${NB_USER}
-
-# install the python dependencies
-COPY requirements.txt environment.yml /tmp/
-RUN mamba env update -q -f /tmp/environment.yml && \
-    /opt/conda/bin/pip install -r /tmp/requirements.txt --no-cache-dir && \
-    mamba clean -y --all && \
-    mamba env export -n "root" && \
-    rm -rf ${HOME}/.renku/venv
-
-COPY --from=builder ${HOME}/.renku/venv ${HOME}/.renku/venv
+USER rstudio
