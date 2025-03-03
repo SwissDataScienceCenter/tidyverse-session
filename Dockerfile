@@ -6,6 +6,8 @@ COPY fix-permissions.sh /usr/local/bin
 RUN fix-permissions.sh /usr/local/lib/R
 RUN fix-permissions.sh /etc/rstudio/
 RUN fix-permissions.sh /etc/services.d/rstudio/
+RUN fix-permissions.sh /var/run/
+# RUN fix-permissions.sh /var/run/s6/
 
 # The container will be run as a regular user, so certain changes need to be done at image build time
 ENV DISABLE_AUTH=true
